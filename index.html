@@ -704,7 +704,24 @@
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+// ⭐⭐⭐ Firebase Test Function ⭐⭐⭐
+function testFirebase() {
+    const statusEl = document.getElementById('firebaseTestStatus');
+    statusEl.textContent = 'Testing Firebase...';
 
+    db.collection('trackerData').doc('firebaseTest').set({
+        test: true,
+        timestamp: new Date().toISOString()
+    })
+    .then(() => {
+        console.log('✅ Test write to Firebase succeeded');
+        statusEl.textContent = '✅ Test write to Firebase succeeded!';
+    })
+    .catch((error) => {
+        console.error('❌ Test write to Firebase failed:', error);
+        statusEl.textContent = '❌ Test write failed: ' + error.message;
+    });
+}
         // Data Structure
         let appData = {
             currentPoints: 0,
