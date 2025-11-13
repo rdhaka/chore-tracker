@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Awesome Tracker</title>
     
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (compat builds for easy browser use) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
@@ -505,7 +505,7 @@
             </div>
         </div>
 
-        <!-- Password Recovery -->
+        <!-- Password Recovery (you’re not linking to this yet, but kept it for completeness) -->
         <div id="passwordRecovery" class="view">
             <div class="parent-login">
                 <h2>Password Recovery</h2>
@@ -550,7 +550,7 @@
                 </div>
                 <div class="form-group">
                     <label>Emoji Icon (optional)</label>
-                    <input type="text" id="taskIcon" placeholder="e.g., 🛏️" maxlength="2">
+                    <input type="text" id="taskIcon" placeholder="e.g., 🛏️" maxlength="4">
                 </div>
                 <div class="form-group">
                     <label>Points</label>
@@ -597,7 +597,7 @@
                 </div>
                 <div class="form-group">
                     <label>Emoji Icon</label>
-                    <input type="text" id="rewardIcon" placeholder="e.g., 📱" maxlength="2">
+                    <input type="text" id="rewardIcon" placeholder="e.g., 📱" maxlength="4">
                 </div>
                 <button class="add-btn" onclick="addReward()">Add Reward</button>
                 <div class="item-list" id="rewardManageList"></div>
@@ -675,14 +675,14 @@
                 <p><strong>Rewards Redeemed:</strong> <span id="adminRewardsRedeemed">0</span></p>
             </div>
 
-            <!-- 🧪 Firebase Connection Test Section -->
+            <!-- 🧪 Firebase Connection Test -->
             <div class="admin-section">
                 <h3>🧪 Firebase Connection Test</h3>
                 <p style="margin-bottom: 10px; color: #666;">
-                    Click below to attempt a test write to Firestore.
+                    Click the button below to test if this app can read and write to Firestore.
                 </p>
-                <button class="add-btn" onclick="testFirebase()">Run Firebase Test</button>
-                <p id="firebaseTestStatus" style="margin-top: 10px; color: #666;"></p>
+                <button class="add-btn" onclick="testFirebaseConnection()">Test Firebase Connection</button>
+                <p id="firebaseTestResult" style="margin-top: 10px; font-weight: bold;"></p>
             </div>
         </div>
     </div>
@@ -692,44 +692,49 @@
     </div>
 
     <script>
-        // Firebase Configuration
+        // --- Firebase Configuration (from your project) ---
         const firebaseConfig = {
-          apiKey: "AIzaSyBbf76L6tjjO2AiMR-m9v5iMeGxO-Y2-Qk",
-          authDomain: "chore-tracker-3e4ef.firebaseapp.com",
-          projectId: "chore-tracker-3e4ef",
-          storageBucket: "chore-tracker-3e4ef.firebasestorage.app",
-          messagingSenderId: "1095322379888",
-          appId: "1:1095322379888:web:06fee089d014105a1976b5"
+            apiKey: "AIzaSyBbf76L6tjjO2AiMR-m9v5iMeGxO-Y2-Qk",
+            authDomain: "chore-tracker-3e4ef.firebaseapp.com",
+            projectId: "chore-tracker-3e4ef",
+            storageBucket: "chore-tracker-3e4ef.firebasestorage.app",
+            messagingSenderId: "1095322379888",
+            appId: "1:1095322379888:web:06fee089d014105a1976b5"
         };
 
-        // Initialize Firebase
+        // Initialize Firebase (compat)
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // 🧪 Firebase Test Function
-        function testFirebase() {
-            const statusEl = document.getElementById('firebaseTestStatus');
-            if (!statusEl) {
-                console.error('firebaseTestStatus element not found');
-                return;
-            }
-            statusEl.textContent = 'Testing Firebase...';
+        // Simple Firestore test function
+        function testFirebaseConnection() {
+            const resultEl = document.getElementById('firebaseTestResult');
+            resultEl.textContent = 'Testing Firebase...';
 
-            db.collection('trackerData').doc('firebaseTest').set({
-                test: true,
-                timestamp: new Date().toISOString()
+            const testRef = db.collection('trackerData').doc('firebaseTestDoc');
+
+            testRef.set({
+                message: 'Firebase connection successful',
+                timestamp: Date.now()
             })
             .then(() => {
-                console.log('✅ Test write to Firebase succeeded');
-                statusEl.textContent = '✅ Test write to Firebase succeeded!';
+                resultEl.textContent = 'Write OK, now reading...';
+                return testRef.get();
             })
-            .catch((error) => {
-                console.error('❌ Test write to Firebase failed:', error);
-                statusEl.textContent = '❌ Test write failed: ' + error.message;
+            .then((doc) => {
+                if (doc.exists) {
+                    resultEl.textContent = '🎉 Firebase is WORKING: wrote and read firebaseTestDoc.';
+                } else {
+                    resultEl.textContent = '❌ Wrote document, but could not read it back. Check Firestore rules.';
+                }
+            })
+            .catch((err) => {
+                console.error('Firebase test error:', err);
+                resultEl.textContent = '❌ Firebase error: ' + err.message;
             });
         }
 
-        // Data Structure
+        // --- App state ---
         let appData = {
             currentPoints: 0,
             allTimePoints: 0,
@@ -742,14 +747,11 @@
             securityQuestion: '',
             securityAnswer: ''
         };
-        
-        // Track which date the user is viewing (defaults to today)
+
         let viewingDate = new Date();
-        
-        // Firebase sync flag
         let isLoadingFromFirebase = false;
 
-        // Initialize with sample data
+        // Initialize with sample data if nothing exists
         function initializeSampleData() {
             const saved = localStorage.getItem('kidTrackerData');
             if (!saved) {
@@ -772,75 +774,71 @@
 
                 saveData();
             } else {
-                loadData();
+                // If local backup exists, load it (Firebase will sync later)
+                appData = JSON.parse(saved);
             }
         }
 
-        // Save and Load with Firebase
+        // Save to Firestore + localStorage
         function saveData() {
-            console.log('saveData() called');
-            if (isLoadingFromFirebase) return; // Don't save while loading from Firebase
-            
-            // Save to Firebase
+            if (isLoadingFromFirebase) return;
+
             db.collection('trackerData').doc('mainData').set(appData)
                 .then(() => {
                     console.log('Data saved to Firebase');
                 })
                 .catch((error) => {
                     console.error('Error saving to Firebase:', error);
-                    // Fallback to localStorage
-                    localStorage.setItem('kidTrackerData', JSON.stringify(appData));
                 });
-            
-            // Also save to localStorage as backup
+
             localStorage.setItem('kidTrackerData', JSON.stringify(appData));
         }
 
+        // Load from Firestore (fallback to localStorage)
         function loadData() {
             isLoadingFromFirebase = true;
-            
-            // Try to load from Firebase first
+
             db.collection('trackerData').doc('mainData').get()
                 .then((doc) => {
                     if (doc.exists) {
                         appData = doc.data();
                         console.log('Data loaded from Firebase');
-                        renderKidView();
                     } else {
-                        // No Firebase data, try localStorage
                         const saved = localStorage.getItem('kidTrackerData');
                         if (saved) {
                             appData = JSON.parse(saved);
                             console.log('Data loaded from localStorage');
-                            // Save to Firebase for future syncing
+                            saveData();
+                        } else {
+                            console.log('No existing data; using sample defaults');
+                            initializeSampleData();
                             saveData();
                         }
                     }
                     isLoadingFromFirebase = false;
+                    renderKidView();
                 })
                 .catch((error) => {
                     console.error('Error loading from Firebase:', error);
-                    // Fallback to localStorage
                     const saved = localStorage.getItem('kidTrackerData');
                     if (saved) {
                         appData = JSON.parse(saved);
                         console.log('Data loaded from localStorage (Firebase error)');
                     }
                     isLoadingFromFirebase = false;
+                    renderKidView();
                 });
         }
-        
-        // Listen for real-time updates from Firebase
+
+        // Real-time sync
         function setupRealtimeSync() {
             db.collection('trackerData').doc('mainData').onSnapshot((doc) => {
                 if (doc.exists && !isLoadingFromFirebase) {
                     const newData = doc.data();
-                    // Only update if data actually changed
                     if (JSON.stringify(newData) !== JSON.stringify(appData)) {
                         appData = newData;
                         console.log('Data updated from Firebase in real-time');
-                        
-                        // Refresh the current view
+
                         const currentView = document.querySelector('.view.active');
                         if (currentView && currentView.id === 'kidView') {
                             renderKidView();
@@ -854,18 +852,18 @@
             });
         }
 
-        // Date Navigation
+        // Date nav
         function changeViewDate(days) {
             viewingDate.setDate(viewingDate.getDate() + days);
             renderKidView();
         }
-        
+
         function goToToday() {
             viewingDate = new Date();
             renderKidView();
         }
 
-        // View Switching
+        // View switching
         function switchToKidView() {
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById('kidView').classList.add('active');
@@ -878,19 +876,7 @@
             document.getElementById('parentPassword').value = '';
         }
 
-        function showPasswordRecovery() {
-            if (!appData.securityQuestion) {
-                alert('No security question has been set. Please contact an administrator.');
-                return;
-            }
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.getElementById('passwordRecovery').classList.add('active');
-            document.getElementById('recoveryQuestion').textContent = appData.securityQuestion;
-            document.getElementById('recoveryAnswer').value = '';
-            document.getElementById('recoveryStep1').style.display = 'block';
-            document.getElementById('recoveryStep2').style.display = 'none';
-        }
-
+        // Login
         function checkParentPassword() {
             const password = document.getElementById('parentPassword').value;
             if (password === appData.parentPassword) {
@@ -902,17 +888,16 @@
             }
         }
 
-        // Kid View Rendering
+        // Kid view render
         function renderKidView() {
-            // Display current viewing date
             const today = new Date();
             const isToday = viewingDate.toDateString() === today.toDateString();
             const isPast = viewingDate < today && !isToday;
             const isFuture = viewingDate > today && !isToday;
-            
+
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             let dateText = viewingDate.toLocaleDateString('en-US', options);
-            
+
             if (isToday) {
                 dateText = '📍 TODAY - ' + dateText;
             } else if (isPast) {
@@ -920,11 +905,11 @@
             } else if (isFuture) {
                 dateText = '⏭️ ' + dateText;
             }
-            
+
             document.getElementById('currentDate').textContent = dateText;
-            
             document.getElementById('currentPoints').textContent = appData.currentPoints;
             document.getElementById('allTimePoints').textContent = appData.allTimePoints;
+
             renderTasks();
             renderRewards();
             updateProgress();
@@ -937,11 +922,11 @@
             const isToday = viewingDateStr === today.toDateString();
             const isPast = viewingDate < today && !isToday;
             const isFuture = viewingDate > today && !isToday;
-            
+
             taskList.innerHTML = '';
-            
+
             const availableTasks = appData.tasks.filter(task => isTaskAvailableForDate(task, viewingDate));
-            
+
             if (availableTasks.length === 0) {
                 if (isPast) {
                     taskList.innerHTML = '<p style="text-align: center; color: #999; font-size: 1.2em;">No tasks for this day</p>';
@@ -956,14 +941,12 @@
             availableTasks.forEach(task => {
                 const isPending = appData.pendingTasks.some(p => p.taskId === task.id && p.date === viewingDateStr);
                 const isCompleted = appData.completedTasks.some(c => c.taskId === task.id && c.date === viewingDateStr);
-                
+
                 const div = document.createElement('div');
-                
-                // Style differently based on past/present/future and completion status
                 let taskClass = 'task-item';
                 let checkboxState = '';
                 let checkboxDisabled = '';
-                
+
                 if (isPending) {
                     taskClass += ' pending';
                     checkboxState = 'checked';
@@ -973,29 +956,26 @@
                     checkboxState = 'checked';
                     checkboxDisabled = 'disabled';
                 } else if (isPast) {
-                    // Past day - mark as incomplete/missed
                     div.style.opacity = '0.6';
-                } else if (isFuture) {
-                    // Future day - just show it normally but can't check off
-                    checkboxDisabled = 'disabled';
-                } else if (!isToday) {
+                } else if (isFuture || !isToday) {
                     checkboxDisabled = 'disabled';
                 }
-                
+
                 div.className = taskClass;
-                
+
                 let pointsDisplay = `+${task.points} pts`;
-                if (isPending) {
-                    pointsDisplay = `+${task.points} pts (pending)`;
-                }
-                
+                if (isPending) pointsDisplay += ' (pending)';
+
                 const taskIcon = task.icon ? task.icon + ' ' : '';
-                
+
                 div.innerHTML = `
                     <input type="checkbox" class="task-checkbox" ${checkboxState} ${checkboxDisabled}
-                           ${isToday && !isPending && !isCompleted ? `onchange="completeTask(${task.id})"` : ''}>
+                        ${isToday && !isPending && !isCompleted ? `onchange="completeTask(${task.id})"` : ''}>
                     <div class="task-content">
-                        <div class="task-name">${taskIcon}${task.name}${isCompleted ? ' ✓' : isPast && !isCompleted ? ' (missed)' : isPending ? ' ⏳' : ''}</div>
+                        <div class="task-name">
+                            ${taskIcon}${task.name}
+                            ${isCompleted ? ' ✓' : isPast && !isCompleted ? ' (missed)' : isPending ? ' ⏳' : ''}
+                        </div>
                         <div class="task-frequency">${formatFrequency(task.frequency, task.weeklyDay, task.specificDate)}</div>
                     </div>
                     <div class="task-points">${pointsDisplay}</div>
@@ -1005,50 +985,17 @@
         }
 
         function isTaskAvailableForDate(task, date) {
-            const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
-            
-            // Check based on frequency type
-            if (task.frequency === 'daily') {
-                return true;
-            }
-            
-            if (task.frequency === 'weekdays') {
-                // Monday = 1, Friday = 5
-                return dayOfWeek >= 1 && dayOfWeek <= 5;
-            }
-            
-            if (task.frequency === 'weekly') {
-                // Check if date's day matches the specified day
-                return dayOfWeek === parseInt(task.weeklyDay);
-            }
-            
+            const dayOfWeek = date.getDay();
+
+            if (task.frequency === 'daily') return true;
+            if (task.frequency === 'weekdays') return dayOfWeek >= 1 && dayOfWeek <= 5;
+            if (task.frequency === 'weekly') return dayOfWeek === parseInt(task.weeklyDay);
             if (task.frequency === 'oneTime') {
-                // Check if date matches the specific date
                 if (!task.specificDate) return false;
                 const taskDate = new Date(task.specificDate);
                 return taskDate.toDateString() === date.toDateString();
             }
-            
             return false;
-        }
-
-        function isTaskAvailable(task) {
-            const today = new Date();
-            const todayStr = today.toDateString();
-            
-            // Check if already completed today
-            const completedToday = appData.completedTasks.some(c => 
-                c.taskId === task.id && c.date === todayStr
-            );
-            if (completedToday) return false;
-
-            // Check if pending approval
-            const isPending = appData.pendingTasks.some(p => 
-                p.taskId === task.id && p.date === todayStr
-            );
-            if (isPending) return true;
-
-            return isTaskAvailableForDate(task, today);
         }
 
         function formatFrequency(freq, weeklyDay, specificDate) {
@@ -1068,7 +1015,7 @@
         function completeTask(taskId) {
             const task = appData.tasks.find(t => t.id === taskId);
             const today = new Date().toDateString();
-            
+
             appData.pendingTasks.push({
                 taskId: taskId,
                 taskName: task.name,
@@ -1076,7 +1023,7 @@
                 date: today,
                 timestamp: Date.now()
             });
-            
+
             saveData();
             showCelebration(`🎉 Great job completing "${task.name}"! ⏳ Waiting for parent approval...`);
             renderKidView();
@@ -1085,7 +1032,7 @@
         function renderRewards() {
             const rewardsList = document.getElementById('rewardsList');
             rewardsList.innerHTML = '';
-            
+
             appData.rewards.sort((a, b) => a.cost - b.cost).forEach(reward => {
                 const canAfford = appData.currentPoints >= reward.cost;
                 const div = document.createElement('div');
@@ -1094,8 +1041,8 @@
                     <div class="reward-icon">${reward.icon}</div>
                     <div class="reward-name">${reward.name}</div>
                     <div class="reward-cost">${reward.cost} points</div>
-                    <button class="redeem-btn" ${!canAfford ? 'disabled' : ''} 
-                            onclick="redeemReward(${reward.id})">
+                    <button class="redeem-btn" ${!canAfford ? 'disabled' : ''}
+                        onclick="redeemReward(${reward.id})">
                         ${canAfford ? 'Redeem!' : 'Need more points'}
                     </button>
                 `;
@@ -1119,31 +1066,29 @@
         function updateProgress() {
             const today = new Date();
             const todayStr = today.toDateString();
-            
-            // Daily progress
+
             const dailyTasks = appData.tasks.filter(t => t.frequency === 'daily');
-            const completedDaily = appData.completedTasks.filter(c => 
+            const completedDaily = appData.completedTasks.filter(c =>
                 c.date === todayStr && dailyTasks.some(t => t.id === c.taskId)
             ).length;
             const dailyPercent = dailyTasks.length > 0 ? Math.round((completedDaily / dailyTasks.length) * 100) : 0;
             updateProgressBar('dailyProgress', dailyPercent);
-            
-            // Weekly progress
+
             const startOfWeek = new Date(today);
             startOfWeek.setDate(today.getDate() - today.getDay());
             const weeklyCompleted = appData.completedTasks.filter(c => new Date(c.date) >= startOfWeek).length;
-            const weeklyPossible = appData.tasks.filter(t => t.frequency !== 'weekly').length * 7 + 
-                                   appData.tasks.filter(t => t.frequency === 'weekly').length;
+            const weeklyPossible =
+                appData.tasks.filter(t => t.frequency !== 'weekly').length * 7 +
+                appData.tasks.filter(t => t.frequency === 'weekly').length;
             const weeklyPercent = weeklyPossible > 0 ? Math.round((weeklyCompleted / weeklyPossible) * 100) : 0;
             updateProgressBar('weeklyProgress', Math.min(weeklyPercent, 100));
-            
-            // Monthly progress
+
             const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
             const monthlyCompleted = appData.completedTasks.filter(c => new Date(c.date) >= startOfMonth).length;
             const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-            const monthlyPossible = appData.tasks.filter(t => t.frequency === 'daily').length * daysInMonth +
-                                   appData.tasks.filter(t => t.frequency === 'everyOtherDay').length * Math.floor(daysInMonth / 2) +
-                                   appData.tasks.filter(t => t.frequency === 'weekly').length * Math.floor(daysInMonth / 7);
+            const monthlyPossible =
+                appData.tasks.filter(t => t.frequency === 'daily').length * daysInMonth +
+                appData.tasks.filter(t => t.frequency === 'weekly').length * Math.floor(daysInMonth / 7);
             const monthlyPercent = monthlyPossible > 0 ? Math.round((monthlyCompleted / monthlyPossible) * 100) : 0;
             updateProgressBar('monthlyProgress', Math.min(monthlyPercent, 100));
         }
@@ -1161,12 +1106,12 @@
             setTimeout(() => celebration.classList.remove('show'), 3000);
         }
 
-        // Parent Dashboard
+        // --- Parent Dashboard ---
         function updateFrequencyOptions() {
             const frequency = document.getElementById('taskFrequency').value;
             const weeklyDayGroup = document.getElementById('weeklyDayGroup');
             const specificDateGroup = document.getElementById('specificDateGroup');
-            
+
             weeklyDayGroup.style.display = frequency === 'weekly' ? 'block' : 'none';
             specificDateGroup.style.display = frequency === 'oneTime' ? 'block' : 'none';
         }
@@ -1184,7 +1129,7 @@
                 container.innerHTML = '<p style="text-align: center; color: #999;">No pending tasks</p>';
                 return;
             }
-            
+
             container.innerHTML = '';
             appData.pendingTasks.forEach((pending, index) => {
                 const div = document.createElement('div');
@@ -1192,7 +1137,7 @@
                 div.innerHTML = `
                     <div>
                         <strong>${pending.taskName}</strong><br>
-                        <small>${pending.points} points</small>
+                        <small>${pending.points} points • ${pending.date}</small>
                     </div>
                     <div>
                         <button class="approve-btn" onclick="approveTask(${index})">✓ Approve</button>
@@ -1206,18 +1151,18 @@
         function approveTask(index) {
             const pending = appData.pendingTasks[index];
             const task = appData.tasks.find(t => t.id === pending.taskId);
-            
+
             appData.currentPoints += pending.points;
             appData.allTimePoints += pending.points;
-            
+
             appData.completedTasks.push({
                 taskId: pending.taskId,
                 date: pending.date,
                 points: pending.points
             });
-            
-            task.lastCompleted = pending.date;
-            
+
+            if (task) task.lastCompleted = pending.date;
+
             appData.pendingTasks.splice(index, 1);
             saveData();
             renderParentDashboard();
@@ -1232,7 +1177,7 @@
         function renderTaskManagement() {
             const container = document.getElementById('taskManageList');
             container.innerHTML = '';
-            
+
             appData.tasks.forEach(task => {
                 const div = document.createElement('div');
                 div.className = 'item-row';
@@ -1252,23 +1197,23 @@
         }
 
         function addTask() {
-            const name = document.getElementById('taskName').value;
+            const name = document.getElementById('taskName').value.trim();
             const icon = document.getElementById('taskIcon').value || '';
             const points = parseInt(document.getElementById('taskPoints').value);
             const frequency = document.getElementById('taskFrequency').value;
-            
+
             if (!name || !points) {
                 alert('Please fill in task name and points');
                 return;
             }
-            
+
             let weeklyDay = null;
             let specificDate = null;
-            
+
             if (frequency === 'weekly') {
                 weeklyDay = parseInt(document.getElementById('weeklyDay').value);
             }
-            
+
             if (frequency === 'oneTime') {
                 specificDate = document.getElementById('specificDate').value;
                 if (!specificDate) {
@@ -1276,25 +1221,26 @@
                     return;
                 }
             }
-            
+
             const newTask = {
                 id: Date.now(),
-                name: name,
-                icon: icon,
-                points: points,
-                frequency: frequency,
-                weeklyDay: weeklyDay,
-                specificDate: specificDate,
+                name,
+                icon,
+                points,
+                frequency,
+                weeklyDay,
+                specificDate,
                 lastCompleted: null
             };
-            
+
             appData.tasks.push(newTask);
             saveData();
-            
+
             document.getElementById('taskName').value = '';
             document.getElementById('taskIcon').value = '';
             document.getElementById('taskPoints').value = '';
             document.getElementById('specificDate').value = '';
+
             renderParentDashboard();
         }
 
@@ -1309,54 +1255,51 @@
         function editTask(taskId) {
             const task = appData.tasks.find(t => t.id === taskId);
             if (!task) return;
-            
-            // Populate form with current values
+
             document.getElementById('taskName').value = task.name;
             document.getElementById('taskIcon').value = task.icon || '';
             document.getElementById('taskPoints').value = task.points;
             document.getElementById('taskFrequency').value = task.frequency;
-            
+
             updateFrequencyOptions();
-            
+
             if (task.frequency === 'weekly') {
                 document.getElementById('weeklyDay').value = task.weeklyDay;
             }
             if (task.frequency === 'oneTime') {
                 document.getElementById('specificDate').value = task.specificDate;
             }
-            
-            // Change the Add button to Update
+
             const addBtn = document.querySelector('#taskManageList').previousElementSibling;
             addBtn.textContent = 'Update Task';
             addBtn.onclick = function() {
                 updateTask(taskId);
             };
-            
-            // Scroll to form
+
             document.getElementById('taskName').scrollIntoView({ behavior: 'smooth' });
         }
 
         function updateTask(taskId) {
             const task = appData.tasks.find(t => t.id === taskId);
             if (!task) return;
-            
-            const name = document.getElementById('taskName').value;
+
+            const name = document.getElementById('taskName').value.trim();
             const icon = document.getElementById('taskIcon').value || '';
             const points = parseInt(document.getElementById('taskPoints').value);
             const frequency = document.getElementById('taskFrequency').value;
-            
+
             if (!name || !points) {
                 alert('Please fill in task name and points');
                 return;
             }
-            
+
             let weeklyDay = null;
             let specificDate = null;
-            
+
             if (frequency === 'weekly') {
                 weeklyDay = parseInt(document.getElementById('weeklyDay').value);
             }
-            
+
             if (frequency === 'oneTime') {
                 specificDate = document.getElementById('specificDate').value;
                 if (!specificDate) {
@@ -1364,34 +1307,32 @@
                     return;
                 }
             }
-            
+
             task.name = name;
             task.icon = icon;
             task.points = points;
             task.frequency = frequency;
             task.weeklyDay = weeklyDay;
             task.specificDate = specificDate;
-            
+
             saveData();
-            
-            // Reset form
+
             document.getElementById('taskName').value = '';
             document.getElementById('taskIcon').value = '';
             document.getElementById('taskPoints').value = '';
             document.getElementById('specificDate').value = '';
-            
-            // Change button back to Add
+
             const addBtn = document.querySelector('#taskManageList').previousElementSibling;
             addBtn.textContent = 'Add Task';
             addBtn.onclick = addTask;
-            
+
             renderParentDashboard();
         }
 
         function renderRewardManagement() {
             const container = document.getElementById('rewardManageList');
             container.innerHTML = '';
-            
+
             appData.rewards.forEach(reward => {
                 const div = document.createElement('div');
                 div.className = 'item-row';
@@ -1410,28 +1351,29 @@
         }
 
         function addReward() {
-            const name = document.getElementById('rewardName').value;
+            const name = document.getElementById('rewardName').value.trim();
             const cost = parseInt(document.getElementById('rewardCost').value);
             const icon = document.getElementById('rewardIcon').value || '🎁';
-            
+
             if (!name || !cost) {
                 alert('Please fill in all fields');
                 return;
             }
-            
+
             const newReward = {
                 id: Date.now(),
-                name: name,
-                cost: cost,
-                icon: icon
+                name,
+                cost,
+                icon
             };
-            
+
             appData.rewards.push(newReward);
             saveData();
-            
+
             document.getElementById('rewardName').value = '';
             document.getElementById('rewardCost').value = '';
             document.getElementById('rewardIcon').value = '';
+
             renderParentDashboard();
         }
 
@@ -1446,52 +1388,47 @@
         function editReward(rewardId) {
             const reward = appData.rewards.find(r => r.id === rewardId);
             if (!reward) return;
-            
-            // Populate form with current values
+
             document.getElementById('rewardName').value = reward.name;
             document.getElementById('rewardCost').value = reward.cost;
             document.getElementById('rewardIcon').value = reward.icon;
-            
-            // Change the Add button to Update
+
             const addBtn = document.querySelector('#rewardManageList').previousElementSibling;
             addBtn.textContent = 'Update Reward';
             addBtn.onclick = function() {
                 updateReward(rewardId);
             };
-            
-            // Scroll to form
+
             document.getElementById('rewardName').scrollIntoView({ behavior: 'smooth' });
         }
 
         function updateReward(rewardId) {
             const reward = appData.rewards.find(r => r.id === rewardId);
             if (!reward) return;
-            
-            const name = document.getElementById('rewardName').value;
+
+            const name = document.getElementById('rewardName').value.trim();
             const cost = parseInt(document.getElementById('rewardCost').value);
             const icon = document.getElementById('rewardIcon').value || '🎁';
-            
+
             if (!name || !cost) {
                 alert('Please fill in all fields');
                 return;
             }
-            
+
             reward.name = name;
             reward.cost = cost;
             reward.icon = icon;
-            
+
             saveData();
-            
-            // Reset form
+
             document.getElementById('rewardName').value = '';
             document.getElementById('rewardCost').value = '';
             document.getElementById('rewardIcon').value = '';
-            
-            // Change button back to Add
+
             const addBtn = document.querySelector('#rewardManageList').previousElementSibling;
             addBtn.textContent = 'Add Reward';
             addBtn.onclick = addReward;
-            
+
             renderParentDashboard();
         }
 
@@ -1501,14 +1438,14 @@
                 alert('Please enter a point value');
                 return;
             }
-            
+
             if (action === 'add') {
                 appData.currentPoints += points;
                 appData.allTimePoints += points;
             } else {
                 appData.currentPoints = Math.max(0, appData.currentPoints - points);
             }
-            
+
             saveData();
             document.getElementById('manualPoints').value = '';
             updateAdminStats();
@@ -1518,35 +1455,34 @@
             const currentPwd = document.getElementById('currentPassword').value;
             const newPwd = document.getElementById('newPassword').value;
             const confirmPwd = document.getElementById('confirmPassword').value;
-            
+
             if (!currentPwd || !newPwd || !confirmPwd) {
                 alert('Please fill in all password fields');
                 return;
             }
-            
+
             if (currentPwd !== appData.parentPassword) {
                 alert('Current password is incorrect');
                 return;
             }
-            
+
             if (newPwd !== confirmPwd) {
                 alert('New passwords do not match');
                 return;
             }
-            
+
             if (newPwd.length < 6) {
                 alert('Password must be at least 6 characters');
                 return;
             }
-            
+
             appData.parentPassword = newPwd;
             saveData();
-            
-            // Clear fields
+
             document.getElementById('currentPassword').value = '';
             document.getElementById('newPassword').value = '';
             document.getElementById('confirmPassword').value = '';
-            
+
             alert('Password changed successfully!');
         }
 
@@ -1562,7 +1498,7 @@
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            
+
             document.getElementById('backupStatus').textContent = '✓ Data exported successfully!';
             setTimeout(() => {
                 document.getElementById('backupStatus').textContent = '';
@@ -1572,27 +1508,26 @@
         function importData(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const importedData = JSON.parse(e.target.result);
-                    
-                    // Validate the data structure
+
                     if (!importedData.hasOwnProperty('currentPoints') || !importedData.hasOwnProperty('tasks')) {
                         alert('Invalid backup file format');
                         return;
                     }
-                    
+
                     if (confirm('This will replace all current data. Are you sure you want to continue?')) {
                         appData = importedData;
                         saveData();
-                        
+
                         document.getElementById('backupStatus').textContent = '✓ Data imported successfully!';
                         setTimeout(() => {
                             document.getElementById('backupStatus').textContent = '';
                         }, 3000);
-                        
+
                         renderParentDashboard();
                     }
                 } catch (error) {
@@ -1600,15 +1535,13 @@
                 }
             };
             reader.readAsText(file);
-            
-            // Reset file input
             event.target.value = '';
         }
 
         function updateSecurityQuestionField() {
             const select = document.getElementById('securityQuestionSelect');
             const customGroup = document.getElementById('customQuestionGroup');
-            
+
             if (select.value === 'custom') {
                 customGroup.style.display = 'block';
             } else {
@@ -1619,30 +1552,29 @@
         function setSecurityQuestion() {
             const select = document.getElementById('securityQuestionSelect');
             let question = select.value;
-            
+
             if (question === 'custom') {
                 question = document.getElementById('customQuestion').value.trim();
             }
-            
+
             const answer = document.getElementById('securityAnswerInput').value.trim();
-            
+
             if (!question || question === '') {
                 alert('Please select or enter a security question');
                 return;
             }
-            
+
             if (!answer) {
                 alert('Please enter an answer');
                 return;
             }
-            
+
             appData.securityQuestion = question;
             appData.securityAnswer = answer.toLowerCase();
             saveData();
-            
+
             document.getElementById('securityStatus').textContent = '✓ Security question saved successfully!';
-            
-            // Clear fields after 2 seconds
+
             setTimeout(() => {
                 document.getElementById('securityQuestionSelect').value = '';
                 document.getElementById('customQuestion').value = '';
@@ -1654,12 +1586,12 @@
 
         function verifySecurityAnswer() {
             const answer = document.getElementById('recoveryAnswer').value.trim().toLowerCase();
-            
+
             if (!answer) {
                 alert('Please enter your answer');
                 return;
             }
-            
+
             if (answer === appData.securityAnswer) {
                 document.getElementById('recoveryStep1').style.display = 'none';
                 document.getElementById('recoveryStep2').style.display = 'block';
@@ -1671,28 +1603,27 @@
         function resetPassword() {
             const newPwd = document.getElementById('recoveryNewPassword').value;
             const confirmPwd = document.getElementById('recoveryConfirmPassword').value;
-            
+
             if (!newPwd || !confirmPwd) {
                 alert('Please fill in both password fields');
                 return;
             }
-            
+
             if (newPwd !== confirmPwd) {
                 alert('Passwords do not match');
                 return;
             }
-            
+
             if (newPwd.length < 6) {
                 alert('Password must be at least 6 characters');
                 return;
             }
-            
+
             appData.parentPassword = newPwd;
             saveData();
-            
+
             alert('Password reset successfully! You can now log in with your new password.');
-            
-            // Clear fields and return to login
+
             document.getElementById('recoveryNewPassword').value = '';
             document.getElementById('recoveryConfirmPassword').value = '';
             showParentLogin();
@@ -1705,11 +1636,13 @@
             document.getElementById('adminRewardsRedeemed').textContent = appData.redeemedRewards;
         }
 
-        // Initialize
-        initializeSampleData();
-        loadData(); // Load from Firebase
-        setupRealtimeSync(); // Set up real-time syncing
-        renderKidView();
+        // --- App init ---
+        function initApp() {
+            loadData();
+            setupRealtimeSync();
+        }
+
+        window.addEventListener('load', initApp);
     </script>
 </body>
 </html>
