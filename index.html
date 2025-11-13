@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Awesome Tracker</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Comic Sans MS', 'Arial Rounded MT Bold', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .view-toggle {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .toggle-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: all 0.3s;
+        }
+
+        .toggle-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        /* Kid View Styles */
+        .points-display {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .points-display h2 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .points-display .big-number {
+            font-size: 3em;
+            font-weight: bold;
+        }
+
+        .points-display .small-stat {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-top: 10px;
+        }
+
+        .progress-section {
+            margin-bottom: 30px;
+        }
+
+        .progress-item {
+            margin-bottom: 15px;
+        }
+
+        .progress-item label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+
+        .progress-bar {
+            background: #e0e0e0;
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .task-list {
+            margin-bottom: 30px;
+        }
+
+        .task-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .task-item:hover {
+            border-color: #667eea;
+        }
+
+        .task-item.completed {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+
+        .task-item.pending {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+
+        .task-checkbox {
+            width: 30px;
+            height: 30px;
+            margin-right: 15px;
+            cursor: pointer;
+        }
+
+        .task-content {
+            flex: 1;
+        }
+
+        .task-name {
+            font-size: 1.2em;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .task-frequency {
+            font-size: 0.9em;
+            color: #777;
+        }
+
+        .task-points {
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .rewards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .reward-card {
+            background: white;
+            border: 3px solid #667eea;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .reward-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .reward-card.locked {
+            opacity: 0.5;
+            border-color: #ccc;
+        }
+
+        .reward-card.affordable {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+
+        .reward-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .reward-name {
+            font-size: 1.2em;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .reward-cost {
+            background: #667eea;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .reward-card.affordable .reward-cost {
+            background: #28a745;
+        }
+
+        .redeem-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .redeem-btn:hover {
+            background: #218838;
+        }
+
+        .redeem-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Parent Dashboard Styles */
+        .parent-login {
+            text-align: center;
+        }
+
+        .parent-login input {
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            margin: 10px;
+            width: 200px;
+        }
+
+        .parent-login button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .admin-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .admin-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .pending-tasks {
+            margin-bottom: 20px;
+        }
+
+        .pending-task {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .approve-btn, .deny-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-left: 5px;
+            font-size: 14px;
+        }
+
+        .approve-btn {
+            background: #28a745;
+            color: white;
+        }
+
+        .deny-btn {
+            background: #dc3545;
+            color: white;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .add-btn, .save-btn, .delete-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+
+        .delete-btn {
+            background: #dc3545;
+        }
+
+        .item-list {
+            margin-top: 20px;
+        }
+
+        .item-row {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .manual-points {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .manual-points input {
+            width: 100px;
+            padding: 8px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .celebration {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            text-align: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .celebration.show {
+            display: block;
+            animation: bounceIn 0.5s;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: translate(-50%, -50%) scale(0); }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .celebration h2 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .section-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⭐ My Awesome Tracker ⭐</h1>
+        
+        <div class="view-toggle">
+            <button class="toggle-btn" onclick="switchToKidView()">Kid View 🎮</button>
+            <button class="toggle-btn" onclick="showParentLogin()">Parent Dashboard 👨‍👩‍👧</button>
+        </div>
+
+        <!-- Kid View -->
+        <div id="kidView" class="view active">
+            <div class="points-display">
+                <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 15px;">
+                    <button class="toggle-btn" onclick="changeViewDate(-1)" style="font-size: 20px;">◀</button>
+                    <button class="toggle-btn" onclick="goToToday()">TODAY</button>
+                    <button class="toggle-btn" onclick="changeViewDate(1)" style="font-size: 20px;">▶</button>
+                </div>
+                <h2 id="currentDate">Today</h2>
+                <h2>Your Points</h2>
+                <div class="big-number" id="currentPoints">0</div>
+                <div class="small-stat">All-Time Earned: <span id="allTimePoints">0</span></div>
+            </div>
+
+            <div class="progress-section">
+                <div class="section-header">
+                    <h3>📊 Your Progress</h3>
+                </div>
+                <div class="progress-item">
+                    <label>Today's Progress</label>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="dailyProgress" style="width: 0%">0%</div>
+                    </div>
+                </div>
+                <div class="progress-item">
+                    <label>This Week's Progress</label>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="weeklyProgress" style="width: 0%">0%</div>
+                    </div>
+                </div>
+                <div class="progress-item">
+                    <label>This Month's Progress</label>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="monthlyProgress" style="width: 0%">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="task-list">
+                <div class="section-header">
+                    <h3>✅ Today's Tasks</h3>
+                </div>
+                <div id="taskList"></div>
+            </div>
+
+            <div class="rewards-section">
+                <div class="section-header">
+                    <h3>🎁 Rewards Shop</h3>
+                </div>
+                <div class="rewards-grid" id="rewardsList"></div>
+            </div>
+        </div>
+
+        <!-- Parent Login -->
+        <div id="parentLogin" class="view">
+            <div class="parent-login">
+                <h2>Parent Login</h2>
+                <input type="password" id="parentPassword" placeholder="Enter password" onkeypress="if(event.key === 'Enter') checkParentPassword()">
+                <button onclick="checkParentPassword()">Login</button>
+            </div>
+        </div>
+
+        <!-- Password Recovery -->
+        <div id="passwordRecovery" class="view">
+            <div class="parent-login">
+                <h2>Password Recovery</h2>
+                <div id="recoveryStep1">
+                    <p style="margin-bottom: 20px;">Answer your security question to reset your password.</p>
+                    <div class="form-group">
+                        <label id="recoveryQuestion">Security Question</label>
+                        <input type="text" id="recoveryAnswer" placeholder="Enter your answer">
+                    </div>
+                    <button onclick="verifySecurityAnswer()">Verify Answer</button>
+                    <p style="margin-top: 15px;">
+                        <a href="javascript:void(0)" onclick="showParentLogin()" style="color: #667eea; text-decoration: none; cursor: pointer;">← Back to Login</a>
+                    </p>
+                </div>
+                <div id="recoveryStep2" style="display: none;">
+                    <p style="margin-bottom: 20px; color: #28a745;">✓ Answer verified! Set your new password.</p>
+                    <div class="form-group">
+                        <label>New Password</label>
+                        <input type="password" id="recoveryNewPassword" placeholder="Enter new password">
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm New Password</label>
+                        <input type="password" id="recoveryConfirmPassword" placeholder="Confirm new password">
+                    </div>
+                    <button onclick="resetPassword()">Reset Password</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Parent Dashboard -->
+        <div id="parentDashboard" class="view">
+            <div class="admin-section">
+                <h3>🔔 Pending Approvals</h3>
+                <div id="pendingTasks"></div>
+            </div>
+
+            <div class="admin-section">
+                <h3>📝 Manage Tasks</h3>
+                <div class="form-group">
+                    <label>Task Name</label>
+                    <input type="text" id="taskName" placeholder="e.g., Make your bed">
+                </div>
+                <div class="form-group">
+                    <label>Emoji Icon (optional)</label>
+                    <input type="text" id="taskIcon" placeholder="e.g., 🛏️" maxlength="2">
+                </div>
+                <div class="form-group">
+                    <label>Points</label>
+                    <input type="number" id="taskPoints" placeholder="e.g., 10">
+                </div>
+                <div class="form-group">
+                    <label>Frequency</label>
+                    <select id="taskFrequency" onchange="updateFrequencyOptions()">
+                        <option value="daily">Daily (All 7 Days)</option>
+                        <option value="weekdays">Weekdays (Mon-Fri)</option>
+                        <option value="weekly">Weekly (Pick Day)</option>
+                        <option value="oneTime">One-Time (Specific Date)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="weeklyDayGroup" style="display: none;">
+                    <label>Day of Week</label>
+                    <select id="weeklyDay">
+                        <option value="0">Sunday</option>
+                        <option value="1">Monday</option>
+                        <option value="2">Tuesday</option>
+                        <option value="3">Wednesday</option>
+                        <option value="4">Thursday</option>
+                        <option value="5">Friday</option>
+                        <option value="6">Saturday</option>
+                    </select>
+                </div>
+                <div class="form-group" id="specificDateGroup" style="display: none;">
+                    <label>Specific Date</label>
+                    <input type="date" id="specificDate">
+                </div>
+                <button class="add-btn" onclick="addTask()">Add Task</button>
+                <div class="item-list" id="taskManageList"></div>
+            </div>
+
+            <div class="admin-section">
+                <h3>🎁 Manage Rewards</h3>
+                <div class="form-group">
+                    <label>Reward Name</label>
+                    <input type="text" id="rewardName" placeholder="e.g., 30 minutes screen time">
+                </div>
+                <div class="form-group">
+                    <label>Cost (Points)</label>
+                    <input type="number" id="rewardCost" placeholder="e.g., 50">
+                </div>
+                <div class="form-group">
+                    <label>Emoji Icon</label>
+                    <input type="text" id="rewardIcon" placeholder="e.g., 📱" maxlength="2">
+                </div>
+                <button class="add-btn" onclick="addReward()">Add Reward</button>
+                <div class="item-list" id="rewardManageList"></div>
+            </div>
+
+            <div class="admin-section">
+                <h3>💾 Backup & Restore Data</h3>
+                <p style="margin-bottom: 15px; color: #666;">Export your data to backup or transfer to another device. Import to restore from a backup.</p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="add-btn" onclick="exportData()">📥 Export Data</button>
+                    <button class="add-btn" onclick="document.getElementById('importFile').click()">📤 Import Data</button>
+                </div>
+                <input type="file" id="importFile" accept=">.json" style="display: none;" onchange="importData(event)">
+                <p id="backupStatus" style="margin-top: 10px; color: #28a745;
